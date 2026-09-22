@@ -38,7 +38,7 @@ builder.Services.AddOpenIddict()
         options.AddDevelopmentEncryptionCertificate();
         options.AddDevelopmentSigningCertificate();
 
-        options.UseAspNetCore();
+        options.UseAspNetCore().EnableTokenEndpointPassthrough();
 
     });
 
@@ -46,7 +46,7 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var applicationManager = scope.ServiceProvider.GetRequiredService<OpenIddict.Abstractions.IOpenIddictApplicationManager>();
+    var applicationManager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
 
     var existingClient = await applicationManager.FindByClientIdAsync(clientId);
 
@@ -56,11 +56,41 @@ using (var scope = app.Services.CreateScope())
         {
             ClientId = clientId,
             ClientSecret = clientSecret,
-            ClientType = OpenIddictConstants.ClientTypes.Confidential
+            ClientType = OpenIddictConstants.ClientTypes.Confidential,
+
+            Permissions =
+            {
+                OpenIddictConstants.Permissions.Endpoints.Token,
+                OpenIddictConstants.Permissions.GrantTypes.ClientCredentials
+            }
         };
 
 
         await applicationManager.CreateAsync(descriptor);
+    }
+    else
+    {
+        var descriptor = new OpenIddictApplicationDescriptor();
+
+        await applicationManager.PopulateAsync(
+            descriptor,
+            existingClient
+        );
+
+        descriptor.Permissions.Clear();
+
+        descriptor.Permissions.Add(
+            OpenIddictConstants.Permissions.Endpoints.Token
+        );
+
+        descriptor.Permissions.Add(
+            OpenIddictConstants.Permissions.GrantTypes.ClientCredentials
+        );
+
+        await applicationManager.UpdateAsync(
+            existingClient,
+            descriptor
+        );
     }
 }
 
